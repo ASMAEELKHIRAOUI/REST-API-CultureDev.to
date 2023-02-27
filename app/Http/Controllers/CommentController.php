@@ -4,29 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Comment;
 use App\Http\Requests\StoreCommentRequest;
-use App\Http\Requests\UpdateCommentRequest;
+use Illuminate\Support\Facades\Auth;
 
 class CommentController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index()
-    {
-        //
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function create()
-    {
-        //
-    }
 
     /**
      * Store a newly created resource in storage.
@@ -36,7 +17,12 @@ class CommentController extends Controller
      */
     public function store(StoreCommentRequest $request)
     {
-        //
+        $comment = Comment::create($request->all() + ['user_id' => Auth()->user()->id]);
+        return response()->json([
+            'status' => true,
+            'message' => "Comment Added successfully!",
+            'comment' => $comment
+        ], 201);
     }
 
     /**
@@ -47,18 +33,11 @@ class CommentController extends Controller
      */
     public function show(Comment $comment)
     {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param  \App\Models\Comment  $comment
-     * @return \Illuminate\Http\Response
-     */
-    public function edit(Comment $comment)
-    {
-        //
+        // $comment->find($comment->id);
+        if (!$comment) {
+            return response()->json(['message' => 'Comment not found'], 404);
+        }
+        return response()->json($comment, 200);
     }
 
     /**
@@ -68,9 +47,26 @@ class CommentController extends Controller
      * @param  \App\Models\Comment  $comment
      * @return \Illuminate\Http\Response
      */
-    public function update(UpdateCommentRequest $request, Comment $comment)
+    public function update(StoreCommentRequest $request, Comment $comment)
     {
-        //
+        $user = Auth::user();
+        if(!$user->can('edit All comment')  && $user->id != $comment->user_id){
+            return response()->json([
+                'status' => false,
+                'message' => "You don't have permission to edit this comment!",
+            ], 200);
+        }
+        $comment->update($request->all());
+
+        if (!$comment) {
+            return response()->json(['message' => 'Comment not found'], 404);
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => "Comment Updated successfully!",
+            'comment' => $comment
+        ], 200);
     }
 
     /**
@@ -81,6 +77,24 @@ class CommentController extends Controller
      */
     public function destroy(Comment $comment)
     {
-        //
+        $user = Auth::user();
+        if(!$user->can('edit All comment')  && $user->id != $comment->user_id){
+            return response()->json([
+                'status' => false,
+                'message' => "You don't have permission to delet this comment!",
+            ], 200);
+        }
+        $comment->delete();
+
+        if (!$comment) {
+            return response()->json([
+                'message' => 'Comment not found'
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Comment deleted successfully'
+        ], 200);
     }
 }

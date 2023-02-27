@@ -2,30 +2,61 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreArticleRequest;
+use App\Http\Resources\ArticleCollection;
+use App\Http\Resources\ArticleResource;
 use App\Models\Article;
+use App\Models\Tag;
 use Illuminate\Http\Request;
+
+use App\Filters\ArticlesFilter;
+use Illuminate\Support\Facades\Auth;
 
 class ArticleController extends Controller
 {
+
+    // public function __construct()
+    // {
+    //     $this->middleware('auth:api');
+    // }
+
     /**
      * Display a listing of the resource.
      *
      * @return \Illuminate\Http\Response
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+
+        $filter = new ArticlesFilter();
+        $queryItem = $filter->transform($request);
+        if(count($queryItem) == 0){
+            $articles = Article::all();
+            return new ArticleCollection($articles);
+        } else {
+                $articles = Article::where($queryItem)->get();
+                return new ArticleCollection($articles);
+
+
+
+        }
     }
 
-    /**
-     * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function create()
-    {
-        //
+    public function filterCategory( $filter){
+
+      $article=Article::join("categories","categories.id","=","articles.category_id")
+                        ->where("name","=",$filter)->get();
+      return new ArticleCollection($article);
+
     }
+
+
+    public function filterTag($filter){
+
+        $tag=Tag::with("articles")->where("name","=",$filter)->first();
+        return new ArticleCollection($tag->articles);
+
+      }
 
     /**
      * Store a newly created resource in storage.
@@ -33,9 +64,13 @@ class ArticleController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    public function store(Request $request)
+    public function store(StoreArticleRequest $request)
     {
-        //
+        $article = Article::create($request->all() + ['user_id' => Auth()->user()->id])->tags()->attach($request->tags);
+        return response()->json([
+            'status' => true,
+            'message' => "Article Created successfully!",
+        ], 201);
     }
 
     /**
@@ -46,18 +81,10 @@ class ArticleController extends Controller
      */
     public function show(Article $article)
     {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param  \App\Models\Article  $article
-     * @return \Illuminate\Http\Response
-     */
-    public function edit(Article $article)
-    {
-        //
+        if (!$article) {
+            return response()->json(['message' => 'Article not found'], 404);
+        }
+        return new ArticleResource($article);
     }
 
     /**
@@ -67,9 +94,26 @@ class ArticleController extends Controller
      * @param  \App\Models\Article  $article
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, Article $article)
+    public function update(StoreArticleRequest $request, Article $article)
     {
-        //
+        $user = Auth::user();
+        if(!$user->can('edit All article')  && $user->id != $article->user_id){
+            return response()->json([
+                'status' => false,
+                'message' => "You don't have permission to edit this article!",
+            ], 200);
+        }
+        $article->update($request->all());
+
+        if (!$article) {
+            return response()->json(['message' => 'Article not found'], 404);
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => "Article Updated successfully!",
+            'article' => $article
+        ], 200);
     }
 
     /**
@@ -80,6 +124,26 @@ class ArticleController extends Controller
      */
     public function destroy(Article $article)
     {
-        //
+        $user = Auth::user();
+        if(!$user->can('edit All article')  && $user->id != $article->user_id){
+            return response()->json([
+                'status' => false,
+                'message' => "You don't have permission to delete this article!",
+            ], 200);
+        }
+        $article->delete();
+
+        if (!$article) {
+            return response()->json([
+                'message' => 'Article not found'
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Article deleted successfully'
+        ], 200);
     }
+
+
 }
